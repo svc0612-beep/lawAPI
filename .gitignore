@@ -1,0 +1,118 @@
+# ============================================================
+# 환경·비밀 (절대 커밋 금지)
+# ============================================================
+.env
+.env.local
+*.key
+*.pem
+*.pfx
+credentials.json
+
+# ============================================================
+# 파이썬 가상환경 & 캐시
+# ============================================================
+.venv/
+venv/
+env/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ipynb_checkpoints/
+
+# ============================================================
+# ============================================================
+# data/ 폴더 통째 제외 (DB·감사 결과·평가 산출물 다 로컬 전용)
+# 필요한 게 생기면 !data/파일명 으로 예외 추가
+# ============================================================
+data/
+
+# ============================================================
+# 백업 파일 (.py.bak_*)
+# ============================================================
+*.bak
+*.bak_*
+*.py.bak
+*.py.bak_*
+
+# ============================================================
+# 로그·임시 결과·스냅샷
+# ============================================================
+streamlit.stderr.log
+streamlit.stdout.log
+data/streamlit_rag_*.log
+*.log
+*_snapshot.txt
+*_result.txt
+*_bundle/
+*_bundle.zip
+*_debug.zip
+
+# ============================================================
+# 초기 개발 시절 디버그·실험 스크립트 (최상위)
+# ============================================================
+01_direct_basis_compact_debug.py
+02_direct_basis_seed_context_debug.py
+administrative_disposition_timeout_test.py
+broad_regression_12.py
+broad_regression_12_full.py
+context_preserving_expansion_test.py
+context_query_rewrite_test.py
+daily_term_bridge_test.py
+debug_basic_rights_candidates.py
+direct_basis_common_failures_debug.py
+direct_basis_signal_score_debug.py
+diverse_legal_regression_test.py
+gemma_expansion_search_test.py
+legal_term_article_bridge_test.py
+legal_term_bridge_v2_test.py
+live_query_expansion_test.py
+nanet_api_check.py
+pipeline_trace_3cases.py
+primary_law_diagnostic_test.py
+query_expansion_*.py
+signal_consequence_debug.py
+direct_context_current/
+reranker_fix_v1_temp/
+basic_rights_debug_bundle/
+
+# ============================================================
+# 산출물·백업 폴더 (원본 유지, GitHub엔 불필요)
+# ============================================================
+backups/
+artifacts/
+docs/
+models/
+
+# ============================================================
+# OS 파일
+# ============================================================
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# ============================================================
+# IDE
+# ============================================================
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# ============================================================
+# FUSE 임시 파일 (Linux mount 부산물)
+# ============================================================
+.fuse_hidden*
+data/.fuse_hidden*
+
+# ============================================================
+# 옛 리팩터링 백업 스타일 (동일 파일의 옛 버전들)
+# ============================================================
+*_before_*.py
+*_before_*.py.bak
+*.damaged.py
+*.damaged.py.bak

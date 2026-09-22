@@ -1,0 +1,3 @@
+streamlit run app.py
+
+ngrok http 8501
