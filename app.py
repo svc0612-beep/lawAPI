@@ -31,6 +31,7 @@ from services.ui.search_panel import (
     initialize_session_state,
     render_search_panel_top,
     render_search_chat_input,
+    process_pending_question,
 )
 
 from services.ui.full_law_view import (
@@ -64,28 +65,126 @@ st.set_page_config(
 
 
 # ============================================================
-# 2. 스타일
-# ============================================================
-
-apply_styles()
-
-
-# ============================================================
-# 3. Session State
+# 2. Session State (스타일보다 먼저 초기화해야 mode 참조 가능)
 # ============================================================
 
 initialize_session_state()
 
+# theme_mode 가 없으면 라이트로 초기화
+if "theme_mode" not in st.session_state:
+    st.session_state["theme_mode"] = "light"
+
+# font_scale 이 없으면 기본(1.0) 으로 초기화
+# 시각 접근성을 위해 사용자가 UI 에서 조절 가능
+if "font_scale" not in st.session_state:
+    st.session_state["font_scale"] = 1.0
+
 
 # ============================================================
-# 4. 상단 UI (hero + 예시 or 새 주제 버튼)
+# 3. 스타일 (현재 mode + font_scale 에 맞는 CSS 주입)
+# ============================================================
+
+apply_styles(
+    mode=st.session_state["theme_mode"],
+    scale=st.session_state["font_scale"],
+)
+
+
+# ============================================================
+# 4. 상단 UI 위젯 (폰트 크기 + 테마 토글)
+#
+# 시각 접근성:
+#   - 왼쪽 select box 로 폰트 크기 5단계 조절 가능
+#   - 사용자가 선택하면 페이지 전체 텍스트가 그 배율로 재렌더링
+#
+# 응답 생성 중(is_generating=True)에는 두 위젯 모두 disabled 로
+# 두어 사용자가 실수로 조작해서 스크립트를 중단시키지 못하게 함.
+# ============================================================
+
+_is_generating = st.session_state.get("is_generating", False)
+
+# 폰트 크기 5단계 매핑 (배율)
+FONT_OPTIONS = {
+    "🔍 작게":       0.85,
+    "🔎 조금 작게":  0.95,
+    "📖 기본":       1.00,
+    "🔠 조금 크게":  1.15,
+    "🔎+ 크게":      1.35,
+}
+# 현재 값 → 라벨 역매핑
+_current_scale = st.session_state["font_scale"]
+_current_label = next(
+    (label for label, val in FONT_OPTIONS.items() if abs(val - _current_scale) < 0.01),
+    "📖 기본",
+)
+
+# 3열: [빈 여백] [폰트 크기] [🌙 토글]
+_col_spacer, _col_font, _col_toggle = st.columns([6, 3, 1])
+
+# --- 폰트 크기 select ---
+with _col_font:
+    _picked_label = st.selectbox(
+        "폰트 크기",
+        options=list(FONT_OPTIONS.keys()),
+        index=list(FONT_OPTIONS.keys()).index(_current_label),
+        key="font_size_select",
+        label_visibility="collapsed",
+        disabled=_is_generating,
+        help=(
+            "응답 생성 중에는 잠시만 기다려주세요"
+            if _is_generating
+            else "페이지 전체 폰트 크기를 조절합니다"
+        ),
+    )
+    _picked_scale = FONT_OPTIONS[_picked_label]
+    # 변경됐으면 저장 후 rerun 해서 전체 재렌더링
+    if abs(_picked_scale - _current_scale) > 0.01:
+        st.session_state["font_scale"] = _picked_scale
+        st.rerun()
+
+# --- 다크/라이트 토글 ---
+with _col_toggle:
+    _current_mode = st.session_state["theme_mode"]
+    _next_mode = "dark" if _current_mode == "light" else "light"
+    _icon = "🌙" if _current_mode == "light" else "☀️"
+    _help = (
+        "응답 생성 중에는 잠시만 기다려주세요"
+        if _is_generating
+        else ("다크 모드로" if _current_mode == "light" else "라이트 모드로")
+    )
+
+    if st.button(
+        _icon,
+        key="theme_toggle_btn",
+        help=_help,
+        width="stretch",
+        disabled=_is_generating,
+    ):
+        st.session_state["theme_mode"] = _next_mode
+        st.rerun()
+
+
+# ============================================================
+# 5. 상단 UI (hero + 예시 or 새 주제 버튼)
 # ============================================================
 
 render_search_panel_top()
 
 
 # ============================================================
-# 5. 현재 결과 / 대화 이력
+# 6. Pending 질문 처리
+#
+# render_search_chat_input 에서 입력받은 질문은 _pending_question
+# 에 저장만 되고, 실제 실행은 여기서 한다. 이 시점에는 이미
+# 토글이 disabled 상태로 렌더링됐으므로, 응답 대기 중 사용자가
+# 토글을 눌러도 스크립트가 중단되지 않는다.
+# ============================================================
+
+process_pending_question()
+
+
+# ============================================================
+# 7. 현재 결과 / 대화 이력
 # ============================================================
 
 result = st.session_state.get("last_result")
@@ -93,7 +192,7 @@ current_question = clean_text(st.session_state.get("last_question", ""))
 
 
 # ------------------------------------------------------------
-# 5-a. 검증형 멀티턴 RAG: 대화 이력 렌더 → chat_input 은 하단
+# 7-a. 검증형 멀티턴 RAG: 대화 이력 렌더 → chat_input 은 하단
 # ------------------------------------------------------------
 if result and result.get("question_type") == "검증형_RAG_대화":
 
@@ -113,7 +212,7 @@ if result and result.get("question_type") == "검증형_RAG_대화":
 
 
 # ------------------------------------------------------------
-# 5-b. 결과 없음 (첫 진입): 안내 + 하단 chat_input
+# 7-b. 결과 없음 (첫 진입): 안내 + 하단 chat_input
 # ------------------------------------------------------------
 if not result:
     st.info("💬 아래 입력창에 궁금한 법률 내용을 자유롭게 물어보세요. 예시 버튼을 눌러 바로 시작할 수도 있어요.")

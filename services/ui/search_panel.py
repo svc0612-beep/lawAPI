@@ -44,20 +44,21 @@ from services.ui.common import (
 
 EXAMPLE_QUESTIONS = [
     # 가족
-    "이혼하려면 어떻게 해?",
-    "상속받으면 어떻게 해?",
+    "이혼하려면 어떻게 해야 해?",
+    "상속받으면 뭘 먼저 해야 해?",
 
-    # 노동
-    "월급을 안 주면 처벌은?",
-    "부당해고 당했어",
+    # 노동 (장애인 고용 의무 관련 포함)
+    "월급 밀렸는데 어디에 신고해?",
+    "부당해고 당했는데 어떻게 대응해?",
+    "회사가 장애인 고용 안 하면 어떻게 돼?",
 
     # 형사
-    "음주운전 하면 어떤 처벌?",
-    "사기 당했어",
+    "음주운전 하면 어떤 처벌 받아?",
+    "사기 당했는데 어디에 신고하지?",
 
     # 주거·생활
-    "전세보증금 안 돌려주면?",
-    "층간소음 신고",
+    "전세보증금 못 받으면 어떻게 해?",
+    "층간소음 심할 땐 어디에 신고해?",
 ]
 
 
@@ -289,14 +290,53 @@ def render_new_topic_button():
 def render_search_chat_input():
     """
     하단 sticky 채팅 입력창.
-    Enter 로 즉시 제출되고 답변 후 자동으로 clear 된다.
+    입력 즉시 execute_search 를 실행하지 않고,
+    session_state["_pending_question"] 에 저장 후 rerun 한다.
+    실제 실행은 app.py 의 process_pending_question() 에서 담당.
+    이렇게 하면:
+      1) 사용자 입력 → pending 저장 + is_generating=True + rerun
+      2) 새 스크립트 실행에서 토글이 disabled 상태로 렌더링됨
+      3) 그 후 process_pending_question 이 실제 응답 처리
+    결과: 응답 대기 중 사용자가 토글 눌러도 실행이 중단되지 않음.
     """
-    user_input = st.chat_input("궁금한 법률 내용을 자유롭게 물어보세요")
+    # 응답 처리 중이면 입력 자체를 비활성화 (Streamlit 1.30+ 지원)
+    is_busy = st.session_state.get("is_generating", False)
+    placeholder = (
+        "🔄 답변을 생성하고 있어요..."
+        if is_busy
+        else "궁금한 법률 내용을 자유롭게 물어보세요"
+    )
+    user_input = st.chat_input(placeholder, disabled=is_busy)
+
     if user_input:
         question = clean_text(user_input)
         if question:
-            execute_search(question)
+            # pending 큐에 넣고 실행 중 플래그 세팅 → rerun
+            st.session_state["_pending_question"] = question
+            st.session_state["is_generating"] = True
             st.rerun()
+
+
+def process_pending_question():
+    """
+    app.py 가 매 스크립트 실행마다 호출.
+    _pending_question 이 있으면 실제 검색을 실행하고,
+    완료되면 is_generating 을 내리고 rerun 해서 결과를 표시한다.
+
+    이 함수를 호출하는 시점에는 이미 토글 UI 가 렌더링된 뒤이므로
+    (is_generating=True 상태로 disabled 처리됨) 사용자가 그동안
+    토글을 눌러도 스크립트가 중단되지 않는다.
+    """
+    pending = st.session_state.pop("_pending_question", None)
+    if not pending:
+        return
+
+    # 사용자에게 처리 중임을 알리는 스피너
+    with st.spinner("공식 법률정보를 검색하고 있어요..."):
+        execute_search(pending)
+
+    st.session_state["is_generating"] = False
+    st.rerun()
 
 
 # ============================================================
@@ -310,56 +350,53 @@ def render_search_chat_input():
 # ============================================================
 
 def render_example_questions():
+    """
+    예시 질문을 3열 그리드로 렌더링.
+    9개 예시를 한 줄에 다 넣으면 텍스트가 잘려서 '...' 처리되기 때문에,
+    3개씩 3줄로 나눠 배치한다. 버튼 안 텍스트도 CSS 로 wrap 허용.
+    """
+    st.caption("💡 예시 질문 — 클릭하면 바로 검색됩니다")
 
-    st.caption(
-        "예시 질문"
-    )
+    # 버튼 텍스트가 잘 wrap 되도록 CSS 오버라이드
+    # (기본 Streamlit 버튼은 white-space: nowrap 이라 강제 override)
+    st.markdown("""
+    <style>
+    div[data-testid="stButton"] button p {
+        white-space: normal !important;
+        word-break: keep-all !important;
+        line-height: 1.4 !important;
+        font-size: 15px !important;
+        font-weight: 600 !important;
+    }
+    div[data-testid="stButton"] button {
+        min-height: 64px !important;
+        padding: 12px 14px !important;
+        text-align: center !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
 
-    example_cols = st.columns(
-        len(
-            EXAMPLE_QUESTIONS
-        )
-    )
+    # 3개씩 묶어 그리드 배치
+    COLS_PER_ROW = 3
+    examples = EXAMPLE_QUESTIONS
 
-    for index, example in enumerate(
-        EXAMPLE_QUESTIONS
-    ):
-
-        with example_cols[
-            index
-        ]:
-
-            if st.button(
-
-                example,
-
-                key=f"example_{index}",
-
-                width="stretch",
-            ):
-
-                # ------------------------------------------------
-                # 다음 rerun에서 입력창에 반영할 값
-                # ------------------------------------------------
-
-                st.session_state[
-                    "pending_question"
-                ] = example
-
-                # ------------------------------------------------
-                # 검색 자체는 지금 바로 실행
-                # ------------------------------------------------
-
-                execute_search(
-                    example
-                )
-
-                # ------------------------------------------------
-                # rerun 후
-                # pending_question → question_input 반영
-                # ------------------------------------------------
-
-                st.rerun()
+    # 예시 개수를 3의 배수로 맞추기 위해 필요한 만큼 반복
+    for row_start in range(0, len(examples), COLS_PER_ROW):
+        # 한 줄에 3열
+        cols = st.columns(COLS_PER_ROW)
+        # 이 줄의 3개(마지막 줄은 그보다 적을 수도) 배치
+        for offset, example in enumerate(examples[row_start:row_start + COLS_PER_ROW]):
+            with cols[offset]:
+                if st.button(
+                    example,
+                    key=f"example_{row_start + offset}",
+                    width="stretch",
+                ):
+                    # pending_question 방식과 통일:
+                    # 예시 버튼도 채팅 입력창처럼 pending 큐에 넣는다.
+                    st.session_state["_pending_question"] = example
+                    st.session_state["is_generating"] = True
+                    st.rerun()
 
 
 # ============================================================

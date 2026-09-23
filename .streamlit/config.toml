@@ -1,6 +1,15 @@
+# ============================================================
+# LawMate Streamlit 테마 설정
+#
+# 라이트/다크 전환은 사용자가 UI 에서 직접 토글 (session_state
+# "theme_mode" 로 관리). config.toml 은 라이트를 기본값으로 두고,
+# 실제 색상은 services/ui/styles.py 의 apply_styles(mode) 에서
+# CSS 로 완전히 오버라이드한다.
+# ============================================================
+
 [theme]
 base = "light"
-primaryColor = "#dc2626"
+primaryColor = "#ec4899"
 backgroundColor = "#ffffff"
 secondaryBackgroundColor = "#f8fafc"
 textColor = "#0f172a"
